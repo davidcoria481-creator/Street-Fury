@@ -5,12 +5,12 @@ const PORT=+process.env.PORT||3000;
 const lan=()=>{for(const l of Object.values(os.networkInterfaces()))for(const a of l)if(a.family==='IPv4'&&!a.internal)return a.address;return'localhost'};
 const CODE=[...'ABCDEFGHJKMNPQRSTUVWXYZ'].sort(()=>Math.random()-.5).slice(0,4).join('');
 const URLP=`http://${lan()}:${PORT}/play?c=${CODE}`;
-const S={ph:'lobby',pl:{},tm:[],round:[0,0],rn:1,bg:'',t:120,cd:0,msg:'',endT:0,pause:false};
+const S={ph:'lobby',pl:{},tm:[],round:[0,0],rn:1,bg:'',t:120,cd:0,msg:'',endT:0,pause:false,diff:1};
 const clients=new Set();
 const ps=()=>Object.values(S.pl).filter(p=>p.slot>=0).sort((a,b)=>a.slot-b.slot);
 const vib=(t,p)=>{for(const c of clients)if(c.id&&c.id===t.pid)c.res.write(`event: vib\ndata: ${JSON.stringify(p)}\n\n`)};
 // teclas (bits): izq1 der2 arr4 aba8 A16 B32 C64 D128 SP256 L1 512 R1 1024 L2 2048 R2 4096
-function startMatch(){const all=ps().flatMap(p=>p.picks),b=all.find(i=>BG[i]);S.bg=b?BG[b]:Object.values(BG)[Math.random()*10|0];S.round=[0,0];S.rn=1;newRound()}
+function startMatch(){const c=ps().find(p=>p.cpu),h=ps().find(p=>!p.cpu);if(c)c.picks=Object.keys(FD).filter(i=>!h.picks.includes(i)).sort(()=>Math.random()-.5).slice(0,2);const all=ps().flatMap(p=>p.picks),b=all.find(i=>BG[i]);S.bg=b?BG[b]:Object.values(BG)[Math.random()*10|0];S.round=[0,0];S.rn=1;newRound()}
 function newRound(){S.tm=ps().map((p,i)=>({i,pid:p.id,name:p.name,fs:p.picks.map(f=>({f,hp:100,pw:0,al:true})),a:0,x:i?680:320,z:0,vz:0,st:'idle',sT:0,face:i?-1:1,swCd:0,k:0,pk:0}));S.ph='match';S.cd=3;S.t=120;S.msg='';S.pause=false}
 function endRound(w){if(S.ph!=='match')return;if(w>=0)S.round[w]++;S.ph='end';S.endT=3.5;S.msg=w<0?'EMPATE':S.round[w]>=2?'CAMPEÓN: '+S.tm[w].name:'GANA '+S.tm[w].name;S.tm.forEach((t,i)=>vib(t,w===i?[100,50,100]:[400]))}
 function ko(o){const q=o.fs[o.a];q.hp=0;q.al=false;o.st='ko';o.sT=1.1;vib(o,[200,80,200,80,500]);if(!o.fs.some(f=>f.al))endRound(1-o.i)}
@@ -30,19 +30,29 @@ function unit(t,o,dt){const f=t.fs[t.a],d=FD[f.f],k=t.k,pr=k&~t.pk;t.pk=k;t.swCd
   else if(pr&32){t.st='kick';t.sT=.4;hit(t,o,9,90,30)}
   else if(pr&256&&f.pw>=300){f.pw=0;t.st='sp';t.sT=.7;hit(t,o,34,430,160)}}
  if(t.z>0||t.vz>0){t.z+=t.vz*dt;t.vz-=1600*dt;if(t.z<=0){t.z=0;t.vz=0}}}
-function step(dt){if(S.ph==='end'){S.endT-=dt;if(S.endT<=0){if(S.round.some(r=>r>=2)){S.ph='select';S.tm=[];ps().forEach(p=>p.ready=false)}else{S.rn++;newRound()}}return}
+function ai(t,o){const A=t.ai||(t.ai={n:0,k:0});if((A.n-=1/30)>0)return A.k;const D=S.diff;A.n=[.4,.22,.1][D]*(.6+Math.random()*.8);
+ const f=t.fs[t.a],dx=o.x-t.x,ad=Math.abs(dx),dir=dx>0?2:1;let k=0;
+ if(f.pw>=300&&ad<420&&Math.random()<.7)k=256;
+ else if(t.fs[1-t.a].al&&f.hp<25&&t.swCd<=0&&Math.random()<.5)k=512;
+ else if((o.st==='atk'||o.st==='kick')&&ad<110&&Math.random()<[.2,.4,.65][D])k=2048;
+ else if(ad>85)k=dir|(ad>320&&Math.random()<.4?4096:0);
+ else{const r=Math.random();k=r<.45?16:r<.75?32:r<.85?64:r<.93?(dir===2?1:2):0}
+ A.k=k&~(16|32|64|256|512);return k}
+function back(){S.ph='select';S.tm=[];ps().forEach(p=>{p.ready=!!p.cpu;if(p.cpu)p.picks=[]})}
+function step(dt){if(S.ph==='end'){S.endT-=dt;if(S.endT<=0){if(S.round.some(r=>r>=2)){back()}else{S.rn++;newRound()}}return}
  if(S.ph!=='match'||S.pause)return;if(S.cd>0){S.cd-=dt;return}
- S.t-=dt;unit(S.tm[0],S.tm[1],dt);unit(S.tm[1],S.tm[0],dt);
+ S.t-=dt;S.tm.forEach((t,i)=>{if(S.pl[t.pid]&&S.pl[t.pid].cpu)t.k=ai(t,S.tm[1-i])});unit(S.tm[0],S.tm[1],dt);unit(S.tm[1],S.tm[0],dt);
  if(S.ph==='match'&&S.t<=0){const h=S.tm.map(t=>t.fs.reduce((s,f)=>s+Math.max(0,f.hp),0));endRound(h[0]===h[1]?-1:h[0]>h[1]?0:1)}}
 function act(b){const p=S.pl[b.id];
  if(b.t==='join'){if(b.c!==CODE)return{err:'Código incorrecto'};const id=Math.random().toString(36).slice(2,8),u=ps().map(q=>q.slot),s=[0,1].find(n=>!u.includes(n));
   S.pl[id]={id,name:String(b.n||'Jugador').slice(0,12),slot:s===undefined?-1:s,picks:[],ready:false};if(S.ph==='lobby'&&ps().length>=2)S.ph='select';return{id,slot:S.pl[id].slot}}
  if(!p)return{err:'sin sesión'};
+ if(b.t==='cpu'){if(S.ph==='lobby'&&ps().length===1){S.diff=Math.max(0,Math.min(2,b.d|0));S.pl.cpu={id:'cpu',name:'MÁQUINA',slot:1,picks:[],ready:true,cpu:true};S.ph='select'}return{ok:1}}
  if(b.t==='in'){if(p.slot>=0&&S.tm[p.slot])S.tm[p.slot].k=b.k|0}
  else if(b.t==='pick'&&S.ph==='select'&&p.slot>=0){const a=(b.f||[]).filter((x,i,r)=>FD[x]&&r.indexOf(x)===i).slice(0,2),o=ps().find(q=>q!==p);if(o&&a.some(x=>o.picks.includes(x)))return{err:'ocupado'};p.picks=a;p.ready=false}
  else if(b.t==='ready'&&S.ph==='select'&&p.picks.length===2){p.ready=true;if(ps().length===2&&ps().every(q=>q.ready))startMatch()}
  else if(b.t==='star'&&S.ph==='match')S.pause=!S.pause;
- else if(b.t==='home'&&(S.ph==='match'||S.ph==='end')){S.ph='select';S.tm=[];ps().forEach(q=>q.ready=false)}
+ else if(b.t==='home'&&(S.ph==='match'||S.ph==='end')){back()}
  return{ok:1}}
 const pv=id=>{const p=S.pl[id];if(!p)return{ph:'none'};const o=ps().find(q=>q.id!==id),l=(S.ph==='match'||S.ph==='end')&&p.slot>=0&&S.tm[p.slot];
  return{ph:S.ph,slot:p.slot,name:p.name,picks:p.picks,ready:p.ready,act:l?S.tm[p.slot].fs[S.tm[p.slot].a].f:p.picks[0]||null,opp:o?o.name:'',taken:o?o.picks:[]}};

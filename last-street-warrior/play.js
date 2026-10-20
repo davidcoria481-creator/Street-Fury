@@ -10,7 +10,7 @@ function draw(){
  if(st.ph==='none')return join();
  if(st.ph==='match'||st.ph==='end')return pad();skin='';
  if(st.slot<0)return M.innerHTML='<h2>Sala llena: eres espectador</h2>';
- if(st.ph==='lobby')return M.innerHTML='<h2>Esperando al otro jugador…</h2>';
+ if(st.ph==='lobby'){M.innerHTML='<h2>Esperando al otro jugador…</h2><div>o juega contra la máquina:</div><div style="display:flex;gap:8px"><button data-d="0">FÁCIL</button><button data-d="1">NORMAL</button><button data-d="2">DIFÍCIL</button></div>';M.querySelectorAll('button').forEach(b=>b.onclick=()=>post({t:'cpu',d:+b.dataset.d}));return}
  if(st.ready)return M.innerHTML='<h2>¡Listo! Esperando a '+(st.opp||'tu rival')+'…</h2>';pick()}
 function pick(){if(!sel.length||sel.length>2)sel=st.picks.slice();
  M.innerHTML=`<div>Elige 2 luchadores (el 1.º sale primero): <b>${sel.map(f=>FD[f].n).join(' + ')}</b></div><div class="g">${Object.values(FD).map(d=>`<div data-f="${d.id}" class="${sel.includes(d.id)?'s':''} ${st.taken.includes(d.id)?'x':''}"><img src="assets/thumbs/${d.id}.webp"><b>${d.n}</b></div>`).join('')}</div><button id="ok" ${sel.length<2?'disabled':''}>LISTO</button>`;

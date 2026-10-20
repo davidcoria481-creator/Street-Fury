@@ -1,0 +1,4 @@
+<!doctype html><meta charset="utf-8"><title>Luchadores</title><body style="background:#1b1830;color:#fff;font-family:sans-serif;display:flex;flex-wrap:wrap;gap:8px"><script src="data.js"></script><script src="sprite.js"></script><script>
+for(const id in LOOK){const d=document.createElement('div');d.style.textAlign='center';d.innerHTML=`<canvas width="280" height="230"></canvas><br>${FD[id].n}`;document.body.appendChild(d);const x=d.firstChild.getContext('2d');
+[['idle',60],['atk',200]].forEach(([s,px])=>{x.save();x.translate(px,215);x.scale(LOOK[id].w||1,LOOK[id].w||1);drawSprite(x,LOOK[id],s,0);x.restore()})}
+</script>
